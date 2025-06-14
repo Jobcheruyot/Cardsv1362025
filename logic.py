@@ -62,4 +62,66 @@ def reconcile_cards(kcb_file, equity_file, aspire_file, key_file):
     )
 
     final['val_check'] = final['AMOUNT'] - final['Purchase']
-    return final
+
+    # --- Build summary table similar to the notebook ---
+    # Use unique store names from the aspire file
+    card_summary = (
+        aspire['STORE_NAME']
+        .dropna()
+        .drop_duplicates()
+        .sort_values()
+        .reset_index(drop=True)
+        .to_frame(name='STORE_NAME')
+    )
+    card_summary.index = card_summary.index + 1
+    card_summary.reset_index(inplace=True)
+    card_summary.rename(columns={'index': 'No'}, inplace=True)
+
+    # Sum of amount per store from aspire
+    aspire_sums = (
+        aspire.groupby('STORE_NAME')['AMOUNT']
+        .sum()
+        .reset_index()
+        .rename(columns={'AMOUNT': 'Aspire_Zed'})
+    )
+    card_summary = card_summary.merge(aspire_sums, on='STORE_NAME', how='left')
+
+    # Sum of purchases by branch for KCB and Equity
+    kcb_grouped = (
+        merged_cards[merged_cards['Source'] == 'KCB']
+        .groupby('branch')['Purchase']
+        .sum()
+        .reset_index()
+        .rename(columns={'branch': 'STORE_NAME', 'Purchase': 'kcb_paid'})
+    )
+    card_summary = card_summary.merge(kcb_grouped, on='STORE_NAME', how='left')
+
+    equity_grouped = (
+        merged_cards[merged_cards['Source'] == 'EQUITY']
+        .groupby('branch')['Purchase']
+        .sum()
+        .reset_index()
+        .rename(columns={'branch': 'STORE_NAME', 'Purchase': 'equity_paid'})
+    )
+    card_summary = card_summary.merge(equity_grouped, on='STORE_NAME', how='left')
+
+    # Fill NaNs with 0 for numeric columns
+    numeric_cols = ['Aspire_Zed', 'kcb_paid', 'equity_paid']
+    card_summary[numeric_cols] = card_summary[numeric_cols].fillna(0)
+
+    # Compute totals
+    card_summary['Gross_Banking'] = card_summary['kcb_paid'] + card_summary['equity_paid']
+    card_summary['Variance'] = card_summary['Gross_Banking'] - card_summary['Aspire_Zed']
+
+    totals = {
+        'No': '',
+        'STORE_NAME': 'TOTAL',
+        'Aspire_Zed': card_summary['Aspire_Zed'].sum(),
+        'kcb_paid': card_summary['kcb_paid'].sum(),
+        'equity_paid': card_summary['equity_paid'].sum(),
+        'Gross_Banking': card_summary['Gross_Banking'].sum(),
+        'Variance': card_summary['Variance'].sum(),
+    }
+    card_summary = pd.concat([card_summary, pd.DataFrame([totals])], ignore_index=True)
+
+    return card_summary
