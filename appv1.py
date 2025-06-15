@@ -12,16 +12,21 @@ with st.sidebar:
     aspire_file = st.file_uploader("Aspire File (.csv)", type=["csv"], key="aspire")
     key_file = st.file_uploader("Card Key File (.xlsx)", type=["xlsx"], key="key")
 
+# Manual trigger
 if kcb_file and equity_file and aspire_file and key_file:
-    with st.spinner("Processing data..."):
-        df = process_cards(kcb_file, equity_file, aspire_file, key_file)
-    st.success("Reconciliation complete")
+    if st.button("▶️ Start Reconciliation"):
+        with st.spinner("Processing data..."):
+            df = process_cards(kcb_file, equity_file, aspire_file, key_file)
+        st.success("✅ Reconciliation complete")
 
-    st.download_button(
-        label="Download Excel",
-        data=df.to_excel(index=False, engine="openpyxl"),
-        file_name="reconciliation_v1.xlsx",
-    )
-    st.dataframe(df)
+        # Display download and preview
+        st.download_button(
+            label="⬇️ Download Excel",
+            data=df.to_excel(index=False, engine="openpyxl"),
+            file_name="reconciliation_v1.xlsx",
+        )
+        st.dataframe(df)
+    else:
+        st.warning("📌 Click the 'Start Reconciliation' button to begin.")
 else:
-    st.info("Upload all required files to start")
+    st.info("📤 Please upload all required files to proceed.")
